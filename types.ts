@@ -147,3 +147,21 @@ export interface SaveData {
 }
 
 export type SFXType = 'SHOOT' | 'EXPLOSION' | 'HIT' | 'POWERUP' | 'LASER' | 'BOSS_ROAR' | 'GAME_OVER' | 'CLICK';
+
+// Global Adsgram definition
+export interface ShowPromiseResult {
+    done: boolean; // true, если пользователь досмотрел до конца или пропустил (Interstitial формат)
+    description: string;  // описание события
+    state: 'load' | 'render' | 'playing' | 'destroy'; // состояние баннера
+    error: boolean; // true, если событие связано с ошибкой, иначе false
+}
+
+declare global {
+    interface Window {
+        Adsgram?: {
+            init: (config: { blockId: string; debug?: boolean; }) => {
+                show: () => Promise<ShowPromiseResult>;
+            };
+        }
+    }
+}
