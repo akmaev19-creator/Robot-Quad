@@ -1,6 +1,6 @@
 import { BarrelType, CoreType, AmmoType, WeaponParts, ConsumableType } from "./types";
 
-export const GAME_VERSION = "0.2.1"; // Update this when releasing fixes
+export const GAME_VERSION = "0.2.2"; // Update this when releasing fixes
 
 export const GAME_WIDTH = 400;
 export const GAME_HEIGHT = 700;
