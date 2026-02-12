@@ -20,7 +20,7 @@ const AdOverlay: React.FC<AdOverlayProps> = ({ reason, onAdComplete }) => {
         if (win.Adsgram) {
             try {
                 adControllerRef.current = win.Adsgram.init({
-                    blockId: "22852",
+                    blockId: "22872",
                     debug: false 
                 });
 
@@ -73,7 +73,7 @@ const AdOverlay: React.FC<AdOverlayProps> = ({ reason, onAdComplete }) => {
              </p>
              
              <div className="mt-8 text-[10px] text-slate-600 font-mono">
-                 Adsgram ID: 22852
+                 Adsgram ID: 22872
              </div>
         </div>
     );
