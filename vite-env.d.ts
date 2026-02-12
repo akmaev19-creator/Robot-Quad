@@ -1,6 +1,3 @@
-// Removed reference to vite/client to fix missing type definition error.
-// Explicit module declarations for assets are provided below.
-
 interface ShowPromiseResult {
     done: boolean;
     description: string;
@@ -18,7 +15,7 @@ interface Window {
         WebApp?: {
             version: string;
             isVersionAtLeast: (version: string) => boolean;
-            CloudStorage: {
+            CloudStorage?: {
                 getItem: (key: string, callback: (err: any, value: string) => void) => void;
                 setItem: (key: string, value: string, callback?: (err: any, stored: boolean) => void) => void;
             };
