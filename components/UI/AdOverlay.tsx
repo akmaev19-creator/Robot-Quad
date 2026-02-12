@@ -11,9 +11,6 @@ const AdOverlay: React.FC<AdOverlayProps> = ({ reason, onAdComplete }) => {
     const adControllerRef = useRef<any>(null);
     const hasAttemptedShow = useRef(false);
 
-    // ID пользователя оставляем для генерации ссылки в консоль (для отладки)
-    const [userId] = useState(() => "USER_" + Math.floor(Math.random() * 1000000));
-
     useEffect(() => {
         if (hasAttemptedShow.current) return;
         hasAttemptedShow.current = true;
@@ -33,10 +30,6 @@ const AdOverlay: React.FC<AdOverlayProps> = ({ reason, onAdComplete }) => {
                     // Успех или пропуск
                     console.log("Adsgram result:", result);
                     
-                    // Ссылка остается только в консоли
-                    const url = `https://test.adsgram.ai/reward?userid=${userId}`;
-                    console.log(`%c [REWARD URL]: ${url}`, 'color: #4ade80; font-size: 14px;');
-                    
                     // Сразу продолжаем игру
                     onAdComplete();
 
@@ -55,7 +48,7 @@ const AdOverlay: React.FC<AdOverlayProps> = ({ reason, onAdComplete }) => {
             console.error("Adsgram script not loaded");
             setTimeout(onAdComplete, 1500);
         }
-    }, [onAdComplete, userId]);
+    }, [onAdComplete]);
 
     const getTitle = () => {
         switch (reason) {
