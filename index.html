@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Квад: Последнее Ядро</title>
     
+    <!-- Telegram Web App -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <!-- Adsgram Script -->
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
@@ -36,30 +38,6 @@
         image-rendering: -moz-crisp-edges;
         image-rendering: crisp-edges;
       }
-      
-      /* Orientation Lock Warning */
-      #orientation-warning {
-        display: none;
-      }
-      
-      /* Only show warning if landscape AND aspect ratio is significantly wide (preventing keyboard trigger) */
-      @media screen and (orientation: landscape) and (min-aspect-ratio: 13/9) {
-        #root {
-            display: none;
-        }
-        #orientation-warning {
-            display: flex;
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: #020617;
-            color: #22d3ee;
-            z-index: 9999;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-        }
-      }
     </style>
   <script type="importmap">
 {
@@ -73,11 +51,6 @@
 </script>
 </head>
   <body class="bg-slate-950 text-white overflow-hidden selection:bg-cyan-500 selection:text-black">
-    <div id="orientation-warning">
-        <div style="font-size: 40px; margin-bottom: 20px;">↻</div>
-        <p>ПОВЕРНИТЕ УСТРОЙСТВО</p>
-        <p style="font-size: 10px; color: #64748b; margin-top: 10px;">ИГРА РАБОТАЕТ ТОЛЬКО ВЕРТИКАЛЬНО</p>
-    </div>
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
   </body>

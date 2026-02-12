@@ -164,6 +164,16 @@ declare global {
             init: (config: { blockId: string; debug?: boolean; }) => {
                 show: () => Promise<ShowPromiseResult>;
             };
+        };
+        Telegram?: {
+            WebApp?: {
+                CloudStorage: {
+                    getItem: (key: string, callback: (err: any, value: string) => void) => void;
+                    setItem: (key: string, value: string, callback?: (err: any, stored: boolean) => void) => void;
+                };
+                ready: () => void;
+                expand: () => void;
+            }
         }
     }
 }

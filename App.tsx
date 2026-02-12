@@ -21,10 +21,14 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showLevelSelect, setShowLevelSelect] = useState(false);
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
+  const [isDataLoaded, setIsDataLoaded] = useState(false); // New flag to prevent overwrite
   
   // Ad State
   const [adReason, setAdReason] = useState<'LEVEL' | 'REVIVE' | 'RESET_CHAPTER' | 'BOSS_VICTORY' | 'UNLOCK_SKIN' | null>(null);
   const levelsSinceLastAd = useRef(0);
+
+  // Transition Logic State
+  const pendingLevelData = useRef<{chapter: number, level: number, trophies: boolean[], maxChapter: number, maxLevel: number} | null>(null);
 
   // Progression
   const [chapter, setChapter] = useState(1);
@@ -74,40 +78,87 @@ const App: React.FC = () => {
   const [playerHp, setPlayerHp] = useState<number>(100);
   const [isCraftingOpen, setIsCraftingOpen] = useState(false);
 
-  // --- Persistence ---
+  // --- Persistence & Telegram Init ---
   useEffect(() => {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-          try {
-              const data = JSON.parse(saved);
-              setChapter(data.chapter || 1);
-              setLevel(data.level || 1);
-              setMaxChapter(data.maxChapter || 1);
-              setScrapCount(data.scrap !== undefined ? data.scrap : 250);
-              setCoreCount(data.cores !== undefined ? data.cores : 5);
-              setWeaponXP(data.xp || 0);
-              setWeapons(data.weapons || []);
-              setUtilities(data.utilities || [{ type: ConsumableType.EMPTY, count: 0 }, { type: ConsumableType.EMPTY, count: 0 }]);
-              setTrophies(data.trophies || [false,false,false,false,false]);
-              setSettings(data.settings || { musicEnabled: true, sfxEnabled: true, devMode: false });
-              setPlayerColor(data.playerColor || '#3b82f6');
-              setUnlockedSkins(data.unlockedSkins || ['#3b82f6']);
-          } catch (e) { console.error("Save corrupted", e); }
-      }
+      // 1. Init Telegram
+      try {
+        if (window.Telegram?.WebApp) {
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+        }
+      } catch(e) { console.error("Telegram init error", e); }
+
+      // 2. Load Data (Try Telegram Cloud first, then LocalStorage)
+      const loadData = async () => {
+          // Helper to parse and apply
+          const applyData = (jsonStr: string) => {
+              try {
+                  const data = JSON.parse(jsonStr);
+                  setChapter(data.chapter || 1);
+                  setLevel(data.level || 1);
+                  setMaxChapter(data.maxChapter || 1);
+                  setScrapCount(data.scrap !== undefined ? data.scrap : 250);
+                  setCoreCount(data.cores !== undefined ? data.cores : 5);
+                  setWeaponXP(data.xp || 0);
+                  setWeapons(data.weapons || []);
+                  setUtilities(data.utilities || [{ type: ConsumableType.EMPTY, count: 0 }, { type: ConsumableType.EMPTY, count: 0 }]);
+                  setTrophies(data.trophies || [false,false,false,false,false]);
+                  setSettings(data.settings || { musicEnabled: true, sfxEnabled: true, devMode: false });
+                  setPlayerColor(data.playerColor || '#3b82f6');
+                  setUnlockedSkins(data.unlockedSkins || ['#3b82f6']);
+                  return true;
+              } catch (e) {
+                  console.error("Save corrupted", e);
+                  return false;
+              }
+          };
+
+          // Try Telegram Cloud
+          if (window.Telegram?.WebApp?.CloudStorage) {
+              window.Telegram.WebApp.CloudStorage.getItem(STORAGE_KEY, (err, value) => {
+                  if (!err && value) {
+                      console.log("Loaded from Telegram Cloud");
+                      applyData(value);
+                  } else {
+                      // Fallback to LocalStorage
+                      const saved = localStorage.getItem(STORAGE_KEY);
+                      if (saved) applyData(saved);
+                  }
+                  setIsDataLoaded(true); // Allow saving now
+              });
+          } else {
+              // Just LocalStorage
+              const saved = localStorage.getItem(STORAGE_KEY);
+              if (saved) applyData(saved);
+              setIsDataLoaded(true); // Allow saving now
+          }
+      };
+
+      loadData();
   }, []);
 
+  // Save Data Effect
   useEffect(() => {
       audio.setSettings(settings.musicEnabled, settings.sfxEnabled);
-      if (!showIntro) {
+      // ONLY SAVE IF INTRO IS DONE AND DATA WAS LOADED
+      if (!showIntro && isDataLoaded) {
           const data: SaveData = {
               chapter, level, maxChapter,
               scrap: scrapCount, cores: coreCount, xp: weaponXP,
               weapons, utilities, trophies, settings,
               playerColor, unlockedSkins
           };
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          const jsonStr = JSON.stringify(data);
+          
+          // Save Local
+          localStorage.setItem(STORAGE_KEY, jsonStr);
+          
+          // Save Cloud
+          if (window.Telegram?.WebApp?.CloudStorage) {
+              window.Telegram.WebApp.CloudStorage.setItem(STORAGE_KEY, jsonStr);
+          }
       }
-  }, [chapter, level, scrapCount, coreCount, weaponXP, weapons, utilities, trophies, settings, showIntro, playerColor, unlockedSkins]);
+  }, [chapter, level, scrapCount, coreCount, weaponXP, weapons, utilities, trophies, settings, showIntro, playerColor, unlockedSkins, isDataLoaded]);
 
   // --- Handlers ---
   const initAudio = () => {
@@ -115,60 +166,94 @@ const App: React.FC = () => {
       audio.startMusic();
   }
 
+  const applyPendingLevel = () => {
+      if (pendingLevelData.current) {
+          const { chapter: nextC, level: nextL, trophies: nextT, maxChapter: maxC, maxLevel: maxL } = pendingLevelData.current;
+          
+          setTrophies(nextT);
+          setChapter(nextC);
+          setLevel(nextL);
+          setMaxChapter(maxC);
+          setMaxLevel(maxL);
+          
+          setPlayerHp(100);
+          setGameState(GameState.PLAYING);
+          
+          pendingLevelData.current = null;
+      } else {
+          // Fallback if no pending data (shouldn't happen in flow, but for safety)
+          setPlayerHp(100);
+          setGameState(GameState.PLAYING);
+      }
+  };
+
   const handleLevelComplete = (isBoss: boolean) => {
       const xpGain = level * 10 * chapter;
       setWeaponXP(prev => prev + xpGain);
       
-      // Calculate next level
+      // 1. Calculate Next State
       let nextLevel = level;
       let nextChapter = chapter;
-      
+      let nextTrophies = [...trophies];
+      let nextMaxChapter = maxChapter;
+      let nextMaxLevel = maxLevel;
+
       if (isBoss) {
-          const newTrophies = [...trophies];
-          if (chapter <= 5) newTrophies[chapter-1] = true;
-          setTrophies(newTrophies);
+          if (chapter <= 5) nextTrophies[chapter-1] = true;
+          
           if (chapter < 5) {
               nextChapter = chapter + 1;
               nextLevel = 1;
-              setMaxChapter(c => Math.max(c, nextChapter));
+              nextMaxChapter = Math.max(nextMaxChapter, nextChapter);
           } else {
+              // Game Loop / Victory
               nextChapter = 1;
               nextLevel = 1;
           }
       } else {
           if (level < 10) {
             nextLevel = level + 1;
-            setMaxLevel(l => Math.max(l, nextLevel));
+            nextMaxLevel = Math.max(nextMaxLevel, nextLevel);
           }
       }
 
-      // Ad Logic: Every 5 levels OR Boss Victory
+      // Store in ref so we don't lose it during ad
+      pendingLevelData.current = {
+          chapter: nextChapter,
+          level: nextLevel,
+          trophies: nextTrophies,
+          maxChapter: nextMaxChapter,
+          maxLevel: nextMaxLevel
+      };
+
+      // 2. Ad Logic: Every 3 levels OR Boss Victory
       levelsSinceLastAd.current += 1;
       
       let shouldShowAd = false;
+      let reason: 'BOSS_VICTORY' | 'LEVEL' | null = null;
+
       if (isBoss) {
           shouldShowAd = true;
-          setAdReason('BOSS_VICTORY');
-      } else if (levelsSinceLastAd.current >= 5) {
+          reason = 'BOSS_VICTORY';
+      } else if (levelsSinceLastAd.current >= 3) {
           shouldShowAd = true;
-          setAdReason('LEVEL');
+          reason = 'LEVEL';
           levelsSinceLastAd.current = 0;
       }
 
-      if (shouldShowAd) {
+      if (shouldShowAd && reason) {
+          setAdReason(reason);
           setGameState(GameState.AD_BREAK);
       } else {
-          // Proceed directly
-          setChapter(nextChapter);
-          setLevel(nextLevel);
-          // Auto-heal small amount between levels? No, keep it harsh.
+          // No Ad needed, proceed immediately
+          applyPendingLevel();
       }
   };
 
   const handleDeathChoice = (fullyRestart: boolean) => {
       if (fullyRestart) {
-          // Restart with NO ad, but 0 scrap
-          setScrapCount(0); // Penalty
+          // Restart with NO ad, but 0 scrap penalty
+          setScrapCount(0); 
           setPlayerHp(100);
           setGameState(GameState.PLAYING);
       } else {
@@ -198,35 +283,13 @@ const App: React.FC = () => {
           setPlayerHp(100);
           setGameState(GameState.PLAYING);
       } else if (adReason === 'BOSS_VICTORY' || adReason === 'LEVEL') {
-          // Transition logic duplicated from handleLevelComplete for when ad is done
-          // If we came here, the state hasn't updated level/chapter yet (logic was split)
-          // Wait, actually I didn't update state in handleLevelComplete if ad was shown.
-          // I need to apply the level increment here.
-          
-          if (adReason === 'BOSS_VICTORY') {
-              if (chapter < 5) {
-                  setChapter(c => c + 1);
-                  setLevel(1);
-                  setMaxChapter(c => Math.max(c, chapter + 1));
-              } else {
-                  setChapter(1);
-                  setLevel(1);
-              }
-          } else {
-              // Standard Level
-              if (level < 10) {
-                  setLevel(l => l + 1);
-                  setMaxLevel(l => Math.max(l, level + 1));
-              }
-          }
-          setPlayerHp(100);
-          setGameState(GameState.PLAYING);
-          
+          // Apply the calculated level transition
+          applyPendingLevel();
       } else if (adReason === 'UNLOCK_SKIN' && pendingSkinUnlock) {
           setUnlockedSkins(prev => [...prev, pendingSkinUnlock]);
           setPlayerColor(pendingSkinUnlock);
           setPendingSkinUnlock(null);
-          setGameState(GameState.PLAYING); // Return to game (menu is overlay)
+          setGameState(GameState.PLAYING); 
       }
       setAdReason(null);
   };
@@ -294,21 +357,6 @@ const App: React.FC = () => {
         )}
 
         <div className="flex-1 relative overflow-hidden">
-            {/* Main Menu Overlay */}
-            {gameState === GameState.MENU && (
-                <MainMenu 
-                    onStart={() => { setGameState(GameState.PLAYING); initAudio(); }}
-                    onSettings={() => setShowSettings(true)}
-                    onMap={() => setShowLevelSelect(true)}
-                    chapter={chapter}
-                    level={level}
-                />
-            )}
-
-            {gameState === GameState.AD_BREAK && adReason && (
-                <AdOverlay reason={adReason} onAdComplete={onAdComplete} />
-            )}
-
             <GameCanvas 
                 key={`${chapter}-${level}`} 
                 playerHp={playerHp} 
@@ -329,6 +377,21 @@ const App: React.FC = () => {
                 onClearPendingUtility={() => setPendingUtilityUsage(null)}
                 playerColor={playerColor}
             />
+            
+            {/* Main Menu Overlay - MOVED AFTER GAMECANVAS FOR Z-INDEX SAFETY */}
+            {gameState === GameState.MENU && (
+                <MainMenu 
+                    onStart={() => { setGameState(GameState.PLAYING); initAudio(); }}
+                    onSettings={() => setShowSettings(true)}
+                    onMap={() => setShowLevelSelect(true)}
+                    chapter={chapter}
+                    level={level}
+                />
+            )}
+
+            {gameState === GameState.AD_BREAK && adReason && (
+                <AdOverlay reason={adReason} onAdComplete={onAdComplete} />
+            )}
             
             <CraftingMenu 
                 isOpen={isCraftingOpen} onClose={() => setIsCraftingOpen(false)}

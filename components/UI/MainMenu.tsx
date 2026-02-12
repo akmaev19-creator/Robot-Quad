@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Map, Settings, Zap } from 'lucide-react';
+import { Play, Map, Settings } from 'lucide-react';
 import { GAME_VERSION } from '../../constants';
 import { audio } from '../../audio';
 
