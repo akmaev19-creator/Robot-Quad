@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BarrelType, CoreType, AmmoType, ConstructedWeapon, ConsumableType, UtilitySlot } from '../../types';
 import { BARREL_STATS, CORE_STATS, AMMO_STATS, CRAFTING_COST, calculateWeaponStats, CONSUMABLE_COSTS, PART_COSTS, XP_PER_LEVEL } from '../../constants';
-import { X, Box, Edit2 } from 'lucide-react';
+import { X, Box, Edit2, Palette, Play } from 'lucide-react';
 import { audio } from '../../audio';
 
 interface CraftingMenuProps {
@@ -18,12 +18,17 @@ interface CraftingMenuProps {
   onBuyConsumable: (type: ConsumableType, slotIndex: number, cost: number) => void;
   isDevMode: boolean;
   chapter: number;
+  playerColor?: string;
+  unlockedSkins?: string[];
+  onUnlockSkin?: (color: string, costType: 'CORES' | 'AD') => void;
+  onEquipSkin?: (color: string) => void;
 }
 
 const CraftingMenu: React.FC<CraftingMenuProps> = ({ 
-    isOpen, onClose, scrap, cores, xp, weapons, onCraftWeapon, onUpgradeWeapon, onRenameWeapon, utilities, onBuyConsumable, isDevMode, chapter
+    isOpen, onClose, scrap, cores, xp, weapons, onCraftWeapon, onUpgradeWeapon, onRenameWeapon, utilities, onBuyConsumable, isDevMode, chapter,
+    playerColor, unlockedSkins = [], onUnlockSkin, onEquipSkin
 }) => {
-  const [selectedTab, setSelectedTab] = useState<'CRAFT' | 'UPGRADE' | 'SHOP'>('CRAFT');
+  const [selectedTab, setSelectedTab] = useState<'CRAFT' | 'UPGRADE' | 'SHOP' | 'SKINS'>('CRAFT');
   const [selectedSlot, setSelectedSlot] = useState<number>(0);
   
   const [renameText, setRenameText] = useState("");
@@ -49,7 +54,6 @@ const CraftingMenu: React.FC<CraftingMenuProps> = ({
       const existing = weapons[selectedSlot];
       let refund = 0;
       if (existing) {
-          // REMOVED CONFIRMATION DIALOG as requested
           refund = existing.xpInvested * 0.9;
       }
 
@@ -66,6 +70,16 @@ const CraftingMenu: React.FC<CraftingMenuProps> = ({
 
   const previewStats = calculateWeaponStats({ barrel, core, ammo });
 
+  const SKINS = [
+      { color: '#ef4444', name: 'RED ERROR' },
+      { color: '#f97316', name: 'ORANGE FLUX' },
+      { color: '#eab308', name: 'YELLOW WARN' },
+      { color: '#22c55e', name: 'GREEN SYS' },
+      { color: '#3b82f6', name: 'BLUE CORE' }, // Default
+      { color: '#6366f1', name: 'INDIGO DATA' },
+      { color: '#a855f7', name: 'PURPLE VOID' }
+  ];
+
   return (
     <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col p-4 animate-in fade-in duration-200 overflow-hidden pointer-events-auto">
         <div className="flex justify-between items-center mb-4 border-b border-slate-700 pb-2">
@@ -79,10 +93,11 @@ const CraftingMenu: React.FC<CraftingMenuProps> = ({
             <div className="flex items-center gap-2"><div className="w-3 h-3 bg-green-500 rounded-full"></div><span className="text-green-400 font-bold">{xp} XP</span></div>
         </div>
 
-        <div className="flex gap-2 mb-4">
-            <button onClick={() => setSelectedTab('CRAFT')} className={`flex-1 py-2 text-xs font-bold rounded ${selectedTab === 'CRAFT' ? 'bg-cyan-900 border border-cyan-700 text-white' : 'bg-slate-900 text-slate-500'}`}>СОЗДАТЬ</button>
-            <button onClick={() => setSelectedTab('UPGRADE')} className={`flex-1 py-2 text-xs font-bold rounded ${selectedTab === 'UPGRADE' ? 'bg-green-900 border border-green-700 text-white' : 'bg-slate-900 text-slate-500'}`}>УЛУЧШИТЬ</button>
-            <button onClick={() => setSelectedTab('SHOP')} className={`flex-1 py-2 text-xs font-bold rounded ${selectedTab === 'SHOP' ? 'bg-amber-900 border border-amber-700 text-white' : 'bg-slate-900 text-slate-500'}`}>МАГАЗИН</button>
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+            <button onClick={() => setSelectedTab('CRAFT')} className={`flex-1 min-w-[70px] py-2 text-xs font-bold rounded ${selectedTab === 'CRAFT' ? 'bg-cyan-900 border border-cyan-700 text-white' : 'bg-slate-900 text-slate-500'}`}>СОЗДАТЬ</button>
+            <button onClick={() => setSelectedTab('UPGRADE')} className={`flex-1 min-w-[70px] py-2 text-xs font-bold rounded ${selectedTab === 'UPGRADE' ? 'bg-green-900 border border-green-700 text-white' : 'bg-slate-900 text-slate-500'}`}>УЛУЧШИТЬ</button>
+            <button onClick={() => setSelectedTab('SHOP')} className={`flex-1 min-w-[70px] py-2 text-xs font-bold rounded ${selectedTab === 'SHOP' ? 'bg-amber-900 border border-amber-700 text-white' : 'bg-slate-900 text-slate-500'}`}>МАГАЗИН</button>
+            <button onClick={() => setSelectedTab('SKINS')} className={`flex-1 min-w-[70px] py-2 text-xs font-bold rounded ${selectedTab === 'SKINS' ? 'bg-purple-900 border border-purple-700 text-white' : 'bg-slate-900 text-slate-500'}`}>ОБЛИК</button>
         </div>
 
         {selectedTab === 'CRAFT' && (
@@ -209,6 +224,53 @@ const CraftingMenu: React.FC<CraftingMenuProps> = ({
                         </div>
                     )
                 })}
+            </div>
+        )}
+
+        {selectedTab === 'SKINS' && (
+            <div className="flex-1 overflow-y-auto space-y-3 pt-2">
+                 {SKINS.map((skin) => {
+                     const isUnlocked = unlockedSkins?.includes(skin.color);
+                     const isEquipped = playerColor === skin.color;
+                     const canAfford = cores >= 30;
+
+                     return (
+                         <div key={skin.color} className="bg-slate-900 border border-slate-800 p-3 rounded flex justify-between items-center">
+                             <div className="flex items-center gap-3">
+                                 <div className="w-8 h-8 rounded border-2 border-white" style={{ backgroundColor: skin.color }}></div>
+                                 <div className="text-xs font-bold text-white">{skin.name}</div>
+                             </div>
+                             
+                             <div>
+                                 {isUnlocked ? (
+                                     <button 
+                                         onClick={() => { if(!isEquipped) { audio.playSFX('CLICK'); onEquipSkin?.(skin.color); }}}
+                                         className={`px-3 py-2 rounded text-[10px] font-bold ${isEquipped ? 'bg-slate-700 text-slate-400 cursor-default' : 'bg-cyan-600 text-white'}`}
+                                     >
+                                         {isEquipped ? 'НАДЕТО' : 'НАДЕТЬ'}
+                                     </button>
+                                 ) : (
+                                     <div className="flex gap-2">
+                                         <button 
+                                            onClick={() => canAfford && onUnlockSkin?.(skin.color, 'CORES')}
+                                            disabled={!canAfford}
+                                            className={`flex flex-col items-center justify-center px-2 py-1 rounded border ${canAfford ? 'border-purple-500 text-purple-400 bg-purple-900/20' : 'border-slate-700 text-slate-600'}`}
+                                         >
+                                             <span className="text-[10px] font-bold">30 ЯДЕР</span>
+                                         </button>
+                                         <button 
+                                            onClick={() => onUnlockSkin?.(skin.color, 'AD')}
+                                            className="flex flex-col items-center justify-center px-2 py-1 rounded border border-white text-white bg-white/10"
+                                         >
+                                             <Play size={10} fill="white" />
+                                             <span className="text-[10px] font-bold">AD</span>
+                                         </button>
+                                     </div>
+                                 )}
+                             </div>
+                         </div>
+                     )
+                 })}
             </div>
         )}
     </div>

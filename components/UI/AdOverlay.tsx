@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ShowPromiseResult } from '../../types';
 
 interface AdOverlayProps {
-    reason: 'LEVEL' | 'REVIVE' | 'RESET_CHAPTER' | 'BOSS_VICTORY';
+    reason: 'LEVEL' | 'REVIVE' | 'RESET_CHAPTER' | 'BOSS_VICTORY' | 'UNLOCK_SKIN';
     onAdComplete: () => void;
 }
 
@@ -55,6 +55,7 @@ const AdOverlay: React.FC<AdOverlayProps> = ({ reason, onAdComplete }) => {
             case 'REVIVE': return 'ВОССТАНОВЛЕНИЕ...';
             case 'RESET_CHAPTER': return 'ПЕРЕЗАГРУЗКА...';
             case 'BOSS_VICTORY': return 'ПОБЕДА!';
+            case 'UNLOCK_SKIN': return 'РАЗБЛОКИРОВКА...';
             default: return 'СЛЕДУЮЩИЙ УРОВЕНЬ';
         }
     };

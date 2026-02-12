@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import GameCanvas from './components/GameCanvas';
 import WeaponBar from './components/UI/WeaponBar';
 import CraftingMenu from './components/UI/CraftingMenu';
@@ -22,8 +22,9 @@ const App: React.FC = () => {
   const [showLevelSelect, setShowLevelSelect] = useState(false);
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
   
-  // Ad State - Added BOSS_VICTORY
-  const [adReason, setAdReason] = useState<'LEVEL' | 'REVIVE' | 'RESET_CHAPTER' | 'BOSS_VICTORY' | null>(null);
+  // Ad State
+  const [adReason, setAdReason] = useState<'LEVEL' | 'REVIVE' | 'RESET_CHAPTER' | 'BOSS_VICTORY' | 'UNLOCK_SKIN' | null>(null);
+  const levelsSinceLastAd = useRef(0);
 
   // Progression
   const [chapter, setChapter] = useState(1);
@@ -43,6 +44,11 @@ const App: React.FC = () => {
       sfxEnabled: true,
       devMode: false
   });
+
+  // Customization
+  const [playerColor, setPlayerColor] = useState<string>('#3b82f6');
+  const [unlockedSkins, setUnlockedSkins] = useState<string[]>(['#3b82f6']);
+  const [pendingSkinUnlock, setPendingSkinUnlock] = useState<string | null>(null);
 
   // Inventory
   const [weapons, setWeapons] = useState<(ConstructedWeapon | null)[]>([
@@ -84,6 +90,8 @@ const App: React.FC = () => {
               setUtilities(data.utilities || [{ type: ConsumableType.EMPTY, count: 0 }, { type: ConsumableType.EMPTY, count: 0 }]);
               setTrophies(data.trophies || [false,false,false,false,false]);
               setSettings(data.settings || { musicEnabled: true, sfxEnabled: true, devMode: false });
+              setPlayerColor(data.playerColor || '#3b82f6');
+              setUnlockedSkins(data.unlockedSkins || ['#3b82f6']);
           } catch (e) { console.error("Save corrupted", e); }
       }
   }, []);
@@ -94,11 +102,12 @@ const App: React.FC = () => {
           const data: SaveData = {
               chapter, level, maxChapter,
               scrap: scrapCount, cores: coreCount, xp: weaponXP,
-              weapons, utilities, trophies, settings
+              weapons, utilities, trophies, settings,
+              playerColor, unlockedSkins
           };
           localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       }
-  }, [chapter, level, scrapCount, coreCount, weaponXP, weapons, utilities, trophies, settings, showIntro]);
+  }, [chapter, level, scrapCount, coreCount, weaponXP, weapons, utilities, trophies, settings, showIntro, playerColor, unlockedSkins]);
 
   // --- Handlers ---
   const initAudio = () => {
@@ -107,40 +116,79 @@ const App: React.FC = () => {
   }
 
   const handleLevelComplete = (isBoss: boolean) => {
-      // Differentiate Ad Reason based on Boss status
-      setAdReason(isBoss ? 'BOSS_VICTORY' : 'LEVEL');
-      setGameState(GameState.AD_BREAK);
-      
       const xpGain = level * 10 * chapter;
       setWeaponXP(prev => prev + xpGain);
+      
+      // Calculate next level
+      let nextLevel = level;
+      let nextChapter = chapter;
       
       if (isBoss) {
           const newTrophies = [...trophies];
           if (chapter <= 5) newTrophies[chapter-1] = true;
           setTrophies(newTrophies);
           if (chapter < 5) {
-              setChapter(c => c + 1);
-              setLevel(1);
-              setMaxChapter(c => Math.max(c, chapter + 1));
+              nextChapter = chapter + 1;
+              nextLevel = 1;
+              setMaxChapter(c => Math.max(c, nextChapter));
           } else {
-              // Final boss ending logic could go here, for now just restart level 1 of max chapter
-              setChapter(1);
-              setLevel(1);
+              nextChapter = 1;
+              nextLevel = 1;
           }
       } else {
           if (level < 10) {
-            setLevel(l => l + 1);
-            setMaxLevel(l => Math.max(l, level + 1));
+            nextLevel = level + 1;
+            setMaxLevel(l => Math.max(l, nextLevel));
           }
+      }
+
+      // Ad Logic: Every 5 levels OR Boss Victory
+      levelsSinceLastAd.current += 1;
+      
+      let shouldShowAd = false;
+      if (isBoss) {
+          shouldShowAd = true;
+          setAdReason('BOSS_VICTORY');
+      } else if (levelsSinceLastAd.current >= 5) {
+          shouldShowAd = true;
+          setAdReason('LEVEL');
+          levelsSinceLastAd.current = 0;
+      }
+
+      if (shouldShowAd) {
+          setGameState(GameState.AD_BREAK);
+      } else {
+          // Proceed directly
+          setChapter(nextChapter);
+          setLevel(nextLevel);
+          // Auto-heal small amount between levels? No, keep it harsh.
       }
   };
 
   const handleDeathChoice = (fullyRestart: boolean) => {
       if (fullyRestart) {
-          setAdReason('RESET_CHAPTER');
-          setGameState(GameState.AD_BREAK);
+          // Restart with NO ad, but 0 scrap
+          setScrapCount(0); // Penalty
+          setPlayerHp(100);
+          setGameState(GameState.PLAYING);
       } else {
+          // Revive with Ad
           setAdReason('REVIVE');
+          setGameState(GameState.AD_BREAK);
+      }
+  };
+
+  const handleUnlockSkin = (color: string, costType: 'CORES' | 'AD') => {
+      if (costType === 'CORES') {
+          if (coreCount >= 30) {
+              setCoreCount(prev => prev - 30);
+              setUnlockedSkins(prev => [...prev, color]);
+              setPlayerColor(color);
+              audio.playSFX('POWERUP');
+          }
+      } else {
+          setPendingSkinUnlock(color);
+          setAdReason('UNLOCK_SKIN');
           setGameState(GameState.AD_BREAK);
       }
   };
@@ -149,13 +197,36 @@ const App: React.FC = () => {
       if (adReason === 'REVIVE') {
           setPlayerHp(100);
           setGameState(GameState.PLAYING);
-      } else if (adReason === 'RESET_CHAPTER') {
-          setLevel(1);
+      } else if (adReason === 'BOSS_VICTORY' || adReason === 'LEVEL') {
+          // Transition logic duplicated from handleLevelComplete for when ad is done
+          // If we came here, the state hasn't updated level/chapter yet (logic was split)
+          // Wait, actually I didn't update state in handleLevelComplete if ad was shown.
+          // I need to apply the level increment here.
+          
+          if (adReason === 'BOSS_VICTORY') {
+              if (chapter < 5) {
+                  setChapter(c => c + 1);
+                  setLevel(1);
+                  setMaxChapter(c => Math.max(c, chapter + 1));
+              } else {
+                  setChapter(1);
+                  setLevel(1);
+              }
+          } else {
+              // Standard Level
+              if (level < 10) {
+                  setLevel(l => l + 1);
+                  setMaxLevel(l => Math.max(l, level + 1));
+              }
+          }
           setPlayerHp(100);
           setGameState(GameState.PLAYING);
-      } else if (adReason === 'LEVEL' || adReason === 'BOSS_VICTORY') {
-          setPlayerHp(100);
-          setGameState(GameState.PLAYING);
+          
+      } else if (adReason === 'UNLOCK_SKIN' && pendingSkinUnlock) {
+          setUnlockedSkins(prev => [...prev, pendingSkinUnlock]);
+          setPlayerColor(pendingSkinUnlock);
+          setPendingSkinUnlock(null);
+          setGameState(GameState.PLAYING); // Return to game (menu is overlay)
       }
       setAdReason(null);
   };
@@ -256,6 +327,7 @@ const App: React.FC = () => {
                 playSfx={(t) => audio.playSFX(t)}
                 pendingUtilityUsage={pendingUtilityUsage}
                 onClearPendingUtility={() => setPendingUtilityUsage(null)}
+                playerColor={playerColor}
             />
             
             <CraftingMenu 
@@ -273,6 +345,10 @@ const App: React.FC = () => {
                     setUtilities(u);
                 }}
                 isDevMode={settings.devMode} chapter={chapter}
+                playerColor={playerColor}
+                unlockedSkins={unlockedSkins}
+                onUnlockSkin={handleUnlockSkin}
+                onEquipSkin={setPlayerColor}
             />
 
             <SettingsMenu 

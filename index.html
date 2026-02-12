@@ -42,7 +42,8 @@
         display: none;
       }
       
-      @media screen and (orientation: landscape) and (max-height: 600px) {
+      /* Only show warning if landscape AND aspect ratio is significantly wide (preventing keyboard trigger) */
+      @media screen and (orientation: landscape) and (min-aspect-ratio: 13/9) {
         #root {
             display: none;
         }

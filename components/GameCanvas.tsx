@@ -25,6 +25,7 @@ interface GameCanvasProps {
   playSfx: (type: SFXType) => void;
   pendingUtilityUsage?: number | null;
   onClearPendingUtility?: () => void;
+  playerColor?: string;
 }
 
 const HOUSE_DEPTH = 85; 
@@ -54,7 +55,7 @@ const WALL_COLORS = [
 ];
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ 
-    playerHp, weapons, selectedWeaponIndex, utilities, onConsumeUtility, isPaused, onScrapUpdate, onCoreUpdate, onHpUpdate, initialScrap, initialCores, currentChapter, currentLevel, onLevelComplete, settings, setGameState, gameState, onRestartLevel, playSfx, pendingUtilityUsage, onClearPendingUtility
+    playerHp, weapons, selectedWeaponIndex, utilities, onConsumeUtility, isPaused, onScrapUpdate, onCoreUpdate, onHpUpdate, initialScrap, initialCores, currentChapter, currentLevel, onLevelComplete, settings, setGameState, gameState, onRestartLevel, playSfx, pendingUtilityUsage, onClearPendingUtility, playerColor = '#3b82f6'
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
@@ -755,7 +756,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         ctx.fillStyle = stats.gunColor; ctx.fillRect(gunX, gunY - gunH, gunW, gunH);
         ctx.fillStyle = '#fff'; ctx.fillRect(gunX + 2, gunY - gunH + 2, 2, gunH - 4);
 
-        drawSprite(ctx, SPRITES.PLAYER_ROUND, drawX, drawY, player.width, player.height, '#3b82f6');
+        // Use player color prop here
+        drawSprite(ctx, SPRITES.PLAYER_ROUND, drawX, drawY, player.width, player.height, playerColor);
     }
     
     if (gameState === GameState.LEVEL_COMPLETE) {
@@ -827,7 +829,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         cancelAnimationFrame(frameRef.current); 
     }
     return () => cancelAnimationFrame(frameRef.current);
-  }, [gameState, weapons, selectedWeaponIndex, isPaused, speedMode]);
+  }, [gameState, weapons, selectedWeaponIndex, isPaused, speedMode, playerColor]);
 
   const startGame = () => {
     playerRef.current.hp = 100;
@@ -883,7 +885,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                      </button>
                      <button onClick={() => onRestartLevel(true)} className="flex items-center gap-2 bg-transparent border border-white text-white hover:bg-white/10 px-6 py-2 rounded text-xs active:translate-y-1 transition-all">
                         <RotateCcw size={16} />
-                        СДАТЬСЯ (НАЧАЛО ГЛАВЫ + РЕКЛАМА)
+                        СДАТЬСЯ (0 ЛОМА, БЕЗ РЕКЛАМЫ)
                      </button>
                  </div>
             </div>

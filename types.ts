@@ -144,6 +144,8 @@ export interface SaveData {
     utilities: UtilitySlot[];
     trophies: boolean[]; // 5 chapters
     settings: GameSettings;
+    playerColor: string;
+    unlockedSkins: string[];
 }
 
 export type SFXType = 'SHOOT' | 'EXPLOSION' | 'HIT' | 'POWERUP' | 'LASER' | 'BOSS_ROAR' | 'GAME_OVER' | 'CLICK';
