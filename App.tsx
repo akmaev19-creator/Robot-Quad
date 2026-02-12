@@ -21,7 +21,7 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showLevelSelect, setShowLevelSelect] = useState(false);
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
-  const [isDataLoaded, setIsDataLoaded] = useState(false); 
+  const [isDataLoaded, setIsDataLoaded] = useState(false); // New flag to prevent overwrite
   
   // Ad State
   const [adReason, setAdReason] = useState<'LEVEL' | 'REVIVE' | 'RESET_CHAPTER' | 'BOSS_VICTORY' | 'UNLOCK_SKIN' | null>(null);
@@ -80,17 +80,15 @@ const App: React.FC = () => {
 
   // --- Persistence & Telegram Init ---
   useEffect(() => {
-      // 1. Init Telegram (Safe check)
+      // 1. Init Telegram
       try {
         if (window.Telegram?.WebApp) {
             window.Telegram.WebApp.ready();
-            try {
-                window.Telegram.WebApp.expand();
-            } catch (e) { console.log('Expand not supported'); }
+            window.Telegram.WebApp.expand();
         }
       } catch(e) { console.error("Telegram init error", e); }
 
-      // 2. Load Data (Try Telegram Cloud first IF supported, then LocalStorage)
+      // 2. Load Data (Try Telegram Cloud first, then LocalStorage)
       const loadData = async () => {
           // Helper to parse and apply
           const applyData = (jsonStr: string) => {
@@ -115,26 +113,21 @@ const App: React.FC = () => {
               }
           };
 
-          const tg = window.Telegram?.WebApp;
-          // CloudStorage was introduced in version 6.9
-          const isCloudSupported = tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9') && tg.CloudStorage;
-
-          if (isCloudSupported && tg.CloudStorage) {
-              tg.CloudStorage.getItem(STORAGE_KEY, (err, value) => {
+          // Try Telegram Cloud
+          if (window.Telegram?.WebApp?.CloudStorage) {
+              window.Telegram.WebApp.CloudStorage.getItem(STORAGE_KEY, (err, value) => {
                   if (!err && value) {
                       console.log("Loaded from Telegram Cloud");
                       applyData(value);
                   } else {
-                      // Fallback to LocalStorage if cloud is empty or error
-                      console.log("Cloud empty/error, checking local");
+                      // Fallback to LocalStorage
                       const saved = localStorage.getItem(STORAGE_KEY);
                       if (saved) applyData(saved);
                   }
                   setIsDataLoaded(true); // Allow saving now
               });
           } else {
-              // Standard Browser or Old Telegram
-              console.log("Using LocalStorage (Browser/Old TG)");
+              // Just LocalStorage
               const saved = localStorage.getItem(STORAGE_KEY);
               if (saved) applyData(saved);
               setIsDataLoaded(true); // Allow saving now
@@ -147,7 +140,6 @@ const App: React.FC = () => {
   // Save Data Effect
   useEffect(() => {
       audio.setSettings(settings.musicEnabled, settings.sfxEnabled);
-      
       // ONLY SAVE IF INTRO IS DONE AND DATA WAS LOADED
       if (!showIntro && isDataLoaded) {
           const data: SaveData = {
@@ -158,19 +150,12 @@ const App: React.FC = () => {
           };
           const jsonStr = JSON.stringify(data);
           
-          // Always Save Local (Backups are good)
-          try {
-            localStorage.setItem(STORAGE_KEY, jsonStr);
-          } catch(e) { console.error('Local save failed', e); }
+          // Save Local
+          localStorage.setItem(STORAGE_KEY, jsonStr);
           
-          // Save Cloud if supported
-          const tg = window.Telegram?.WebApp;
-          const isCloudSupported = tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9') && tg.CloudStorage;
-
-          if (isCloudSupported && tg.CloudStorage) {
-              tg.CloudStorage.setItem(STORAGE_KEY, jsonStr, (err, stored) => {
-                  if (err) console.error("Cloud Save Error", err);
-              });
+          // Save Cloud
+          if (window.Telegram?.WebApp?.CloudStorage) {
+              window.Telegram.WebApp.CloudStorage.setItem(STORAGE_KEY, jsonStr);
           }
       }
   }, [chapter, level, scrapCount, coreCount, weaponXP, weapons, utilities, trophies, settings, showIntro, playerColor, unlockedSkins, isDataLoaded]);

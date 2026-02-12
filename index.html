@@ -10,16 +10,13 @@
     <!-- Adsgram Script -->
     <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
 
-    <!-- Tailwind CSS (CDN for dev, usually handled by postcss in prod but fine here) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
       body {
-        font-family: 'Press Start 2P', monospace;
+        font-family: 'Press Start 2P', monospace; /* Retro font fallback */
         overscroll-behavior: none;
-        touch-action: none;
-        background-color: #020617; /* slate-950 */
-        color: white;
+        touch-action: none; /* Prevent pull-to-refresh on mobile */
       }
       /* Custom scanline effect */
       .scanlines {
@@ -48,16 +45,13 @@
     "react": "https://esm.sh/react@^19.2.4",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
     "react/": "https://esm.sh/react@^19.2.4/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.4"
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0"
   }
 }
 </script>
 </head>
   <body class="bg-slate-950 text-white overflow-hidden selection:bg-cyan-500 selection:text-black">
     <div id="root"></div>
-    <!-- Vite entry point -->
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>
