@@ -57,6 +57,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     playerHp, weapons, selectedWeaponIndex, utilities, onConsumeUtility, isPaused, onScrapUpdate, onCoreUpdate, onHpUpdate, initialScrap, initialCores, currentChapter, currentLevel, onLevelComplete, settings, setGameState, gameState, onRestartLevel, playSfx, pendingUtilityUsage, onClearPendingUtility
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  // UI Refs for high-performance updates
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const progressLabelRef = useRef<HTMLDivElement>(null);
+
   const [speedMode, setSpeedMode] = useState<SpeedMode>(SpeedMode.NORMAL);
   
   const frameRef = useRef<number>(0);
@@ -763,10 +768,51 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
   };
 
+  // --- Dynamic UI Update Logic ---
+  const updateUIOverlay = () => {
+    if (!progressBarRef.current || !progressLabelRef.current) return;
+
+    // Check if Boss is active
+    const boss = enemiesRef.current.find(e => e.type === 'BOSS');
+
+    if (boss) {
+        // Boss HP Mode
+        const hpPercent = Math.max(0, (boss.hp / boss.maxHp) * 100);
+        progressBarRef.current.style.width = `${hpPercent}%`;
+        
+        // Change color to red and update text
+        if (!progressBarRef.current.classList.contains('bg-red-600')) {
+            progressBarRef.current.className = "h-full bg-red-600 transition-all duration-100";
+        }
+        progressLabelRef.current.innerText = `БОСС HP: ${Math.ceil(boss.hp)}/${boss.maxHp}`;
+        
+    } else {
+        // Scrap Collection Mode
+        const scrapPercent = Math.min(100, (levelScrapCollected.current / LEVEL_SCRAP_QUOTA) * 100);
+        progressBarRef.current.style.width = `${scrapPercent}%`;
+        
+        if (!progressBarRef.current.classList.contains('bg-amber-500')) {
+            progressBarRef.current.className = "h-full bg-amber-500 transition-all duration-300";
+        }
+
+        if (currentLevel === 10 && levelScrapCollected.current >= LEVEL_SCRAP_QUOTA) {
+             progressLabelRef.current.innerText = "ВНИМАНИЕ: БОСС";
+        } else {
+             progressLabelRef.current.innerText = currentLevel === 10 
+                ? `СБОР ДАННЫХ: ${levelScrapCollected.current}/${LEVEL_SCRAP_QUOTA}` 
+                : `ЦЕЛЬ ЛОМА: ${levelScrapCollected.current}/${LEVEL_SCRAP_QUOTA}`;
+        }
+    }
+  };
+
   const loop = () => {
     update();
     const ctx = canvasRef.current?.getContext('2d');
     if (ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); draw(ctx); }
+    
+    // Update HTML Overlay directly for performance
+    updateUIOverlay();
+
     if (gameState === GameState.PLAYING || gameState === GameState.LEVEL_COMPLETE) {
         frameRef.current = requestAnimationFrame(loop);
     }
@@ -810,11 +856,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             style={{ touchAction: 'none' }}
         />
         
+        {/* Dynamic Overlay Bar (Scrap / Boss HP) */}
         <div className="absolute top-16 left-0 right-0 z-10 px-4 flex justify-center pointer-events-none">
-            <div className="w-full max-w-[200px] h-3 bg-slate-900 border border-slate-700 relative">
-                <div className="h-full bg-amber-500 transition-all duration-300" style={{ width: `${Math.min(100, (levelScrapCollected.current / LEVEL_SCRAP_QUOTA) * 100)}%` }}></div>
-                <div className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white drop-shadow-md">
-                    {currentLevel === 10 ? 'БОСС' : `ЦЕЛЬ ЛОМА: ${levelScrapCollected.current}/${LEVEL_SCRAP_QUOTA}`}
+            <div className="w-full max-w-[200px] h-3 bg-slate-900 border border-slate-700 relative overflow-hidden">
+                <div ref={progressBarRef} className="h-full bg-amber-500 w-0"></div>
+                <div ref={progressLabelRef} className="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white drop-shadow-md">
+                    ЗАГРУЗКА...
                 </div>
             </div>
         </div>
