@@ -11,16 +11,26 @@ interface WeaponBarProps {
   scrapCount: number;
   coreCount: number;
   onOpenCrafting: () => void;
+  onUseUtility?: (index: number) => void;
 }
 
 const WeaponBar: React.FC<WeaponBarProps> = ({ 
-    weapons, selectedWeaponIndex, onSelectWeapon, utilities, scrapCount, coreCount, onOpenCrafting 
+    weapons, selectedWeaponIndex, onSelectWeapon, utilities, scrapCount, coreCount, onOpenCrafting, onUseUtility
 }) => {
   
   const getUtilIcon = (type: ConsumableType) => {
       if (type === ConsumableType.GRENADE) return <Bomb size={16} className="text-white" />;
       if (type === ConsumableType.MEDKIT) return <Heart size={16} className="text-green-500" />;
       return <CircleOff size={16} className="text-slate-700" />;
+  };
+
+  const handleUtilClick = (index: number) => {
+      const slot = utilities[index];
+      const isEmpty = slot.type === ConsumableType.EMPTY;
+      if (!isEmpty && onUseUtility) {
+          audio.playSFX('CLICK');
+          onUseUtility(index);
+      }
   };
 
   return (
@@ -87,7 +97,16 @@ const WeaponBar: React.FC<WeaponBarProps> = ({
                 const slot = utilities[index];
                 const isEmpty = slot.type === ConsumableType.EMPTY;
                 return (
-                    <div key={index} className="rounded bg-slate-900 border border-slate-700 flex flex-col items-center justify-center relative">
+                    <button 
+                        key={index} 
+                        onClick={() => handleUtilClick(index)}
+                        // Adding onTouchEnd for potentially better mobile responsiveness if click is swallowed
+                        onTouchEnd={(e) => {
+                            e.preventDefault(); // Prevent double firing if click follows
+                            handleUtilClick(index);
+                        }}
+                        className={`rounded border flex flex-col items-center justify-center relative transition-colors ${isEmpty ? 'bg-slate-900 border-slate-700' : 'bg-slate-800 border-slate-600 hover:bg-slate-700 active:bg-slate-600'}`}
+                    >
                         <span className="absolute top-0 right-1 text-[8px] text-slate-500">{index + 4}</span>
                         {getUtilIcon(slot.type)}
                         {!isEmpty && (
@@ -96,7 +115,7 @@ const WeaponBar: React.FC<WeaponBarProps> = ({
                                 <span className="absolute bottom-0 right-1 text-[10px] font-bold text-white">{slot.count}</span>
                              </>
                         )}
-                    </div>
+                    </button>
                 );
             })}
         </div>

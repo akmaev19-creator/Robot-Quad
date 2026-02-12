@@ -22,8 +22,8 @@ const App: React.FC = () => {
   const [showLevelSelect, setShowLevelSelect] = useState(false);
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
   
-  // Ad State
-  const [adReason, setAdReason] = useState<'LEVEL' | 'REVIVE' | 'RESET_CHAPTER' | null>(null);
+  // Ad State - Added BOSS_VICTORY
+  const [adReason, setAdReason] = useState<'LEVEL' | 'REVIVE' | 'RESET_CHAPTER' | 'BOSS_VICTORY' | null>(null);
 
   // Progression
   const [chapter, setChapter] = useState(1);
@@ -61,6 +61,9 @@ const App: React.FC = () => {
       { type: ConsumableType.EMPTY, count: 0 },
       { type: ConsumableType.EMPTY, count: 0 }
   ]);
+  
+  // Bridge for UI clicks to Game Logic
+  const [pendingUtilityUsage, setPendingUtilityUsage] = useState<number | null>(null);
 
   const [playerHp, setPlayerHp] = useState<number>(100);
   const [isCraftingOpen, setIsCraftingOpen] = useState(false);
@@ -104,7 +107,8 @@ const App: React.FC = () => {
   }
 
   const handleLevelComplete = (isBoss: boolean) => {
-      setAdReason('LEVEL');
+      // Differentiate Ad Reason based on Boss status
+      setAdReason(isBoss ? 'BOSS_VICTORY' : 'LEVEL');
       setGameState(GameState.AD_BREAK);
       
       const xpGain = level * 10 * chapter;
@@ -119,7 +123,9 @@ const App: React.FC = () => {
               setLevel(1);
               setMaxChapter(c => Math.max(c, chapter + 1));
           } else {
-              alert("YOU SAVED THE SERVER!");
+              // Final boss ending logic could go here, for now just restart level 1 of max chapter
+              setChapter(1);
+              setLevel(1);
           }
       } else {
           if (level < 10) {
@@ -147,7 +153,7 @@ const App: React.FC = () => {
           setLevel(1);
           setPlayerHp(100);
           setGameState(GameState.PLAYING);
-      } else if (adReason === 'LEVEL') {
+      } else if (adReason === 'LEVEL' || adReason === 'BOSS_VICTORY') {
           setPlayerHp(100);
           setGameState(GameState.PLAYING);
       }
@@ -248,6 +254,8 @@ const App: React.FC = () => {
                 onLevelComplete={handleLevelComplete} settings={settings} setGameState={setGameState} gameState={gameState}
                 onRestartLevel={handleDeathChoice}
                 playSfx={(t) => audio.playSFX(t)}
+                pendingUtilityUsage={pendingUtilityUsage}
+                onClearPendingUtility={() => setPendingUtilityUsage(null)}
             />
             
             <CraftingMenu 
@@ -290,6 +298,7 @@ const App: React.FC = () => {
             <WeaponBar 
                 weapons={weapons} selectedWeaponIndex={selectedWeaponIndex} onSelectWeapon={setSelectedWeaponIndex}
                 utilities={utilities} scrapCount={scrapCount} coreCount={coreCount} onOpenCrafting={() => { audio.playSFX('CLICK'); setIsCraftingOpen(true); }}
+                onUseUtility={(idx) => { if(gameState === GameState.PLAYING && !isCraftingOpen) setPendingUtilityUsage(idx); }}
             />
         </div>
       </div>

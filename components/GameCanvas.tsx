@@ -23,6 +23,8 @@ interface GameCanvasProps {
   gameState: GameState;
   onRestartLevel: (fullyRestart: boolean) => void;
   playSfx: (type: SFXType) => void;
+  pendingUtilityUsage?: number | null;
+  onClearPendingUtility?: () => void;
 }
 
 const HOUSE_DEPTH = 85; 
@@ -52,7 +54,7 @@ const WALL_COLORS = [
 ];
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ 
-    playerHp, weapons, selectedWeaponIndex, utilities, onConsumeUtility, isPaused, onScrapUpdate, onCoreUpdate, onHpUpdate, initialScrap, initialCores, currentChapter, currentLevel, onLevelComplete, settings, setGameState, gameState, onRestartLevel, playSfx
+    playerHp, weapons, selectedWeaponIndex, utilities, onConsumeUtility, isPaused, onScrapUpdate, onCoreUpdate, onHpUpdate, initialScrap, initialCores, currentChapter, currentLevel, onLevelComplete, settings, setGameState, gameState, onRestartLevel, playSfx, pendingUtilityUsage, onClearPendingUtility
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [speedMode, setSpeedMode] = useState<SpeedMode>(SpeedMode.NORMAL);
@@ -104,53 +106,63 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     }
   }, [gameState, initialScrap, initialCores]);
 
+  // Handle Utility Usage Logic
+  const executeUtility = (slotIdx: number) => {
+    const utility = utilities[slotIdx];
+    if (utility.type !== ConsumableType.EMPTY && utility.count > 0) {
+        let used = false;
+        if (utility.type === ConsumableType.MEDKIT) {
+            if (playerRef.current.hp < playerRef.current.maxHp) {
+                playerRef.current.hp = Math.min(playerRef.current.maxHp, playerRef.current.hp + 50);
+                onHpUpdate(playerRef.current.hp);
+                createParticles(playerRef.current.x, playerRef.current.y, '#22c55e', 10, 'HIT');
+                playSfx('POWERUP');
+                used = true;
+            }
+        } else if (utility.type === ConsumableType.GRENADE) {
+            playSfx('EXPLOSION');
+            let bossHit = false;
+            enemiesRef.current.forEach(en => {
+                createParticles(en.x, en.y, '#f97316', 15, 'EXPLOSION');
+                if (en.type === 'BOSS') {
+                    en.hp -= en.maxHp / 5; 
+                    bossHit = true;
+                } else {
+                    en.hp = 0; 
+                }
+            });
+            if (!bossHit) enemiesRef.current = enemiesRef.current.filter(e => e.type === 'BOSS'); 
+            const ctx = canvasRef.current?.getContext('2d');
+            if (ctx) { ctx.fillStyle = 'white'; ctx.fillRect(0,0, GAME_WIDTH, GAME_HEIGHT); }
+            used = true;
+        }
+        if (used) onConsumeUtility(slotIdx);
+    }
+  };
+
+  // Watch for pending utility usage from UI (Touch/Click in WeaponBar)
+  useEffect(() => {
+      if (pendingUtilityUsage !== null && pendingUtilityUsage !== undefined) {
+          executeUtility(pendingUtilityUsage);
+          if (onClearPendingUtility) onClearPendingUtility();
+      }
+  }, [pendingUtilityUsage, utilities]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { 
         keysPressed.current[e.code] = true; 
         if (gameState === GameState.PLAYING && !isPaused) {
             if (e.key.toLowerCase() === 's') setSpeedMode(prev => prev === SpeedMode.NORMAL ? SpeedMode.TURBO : SpeedMode.NORMAL);
             
-            const tryUseUtility = (slotIdx: number) => {
-                const utility = utilities[slotIdx];
-                if (utility.type !== ConsumableType.EMPTY && utility.count > 0) {
-                    let used = false;
-                    if (utility.type === ConsumableType.MEDKIT) {
-                        if (playerRef.current.hp < playerRef.current.maxHp) {
-                            playerRef.current.hp = Math.min(playerRef.current.maxHp, playerRef.current.hp + 50);
-                            onHpUpdate(playerRef.current.hp);
-                            createParticles(playerRef.current.x, playerRef.current.y, '#22c55e', 10, 'HIT');
-                            playSfx('POWERUP');
-                            used = true;
-                        }
-                    } else if (utility.type === ConsumableType.GRENADE) {
-                        playSfx('EXPLOSION');
-                        let bossHit = false;
-                        enemiesRef.current.forEach(en => {
-                            createParticles(en.x, en.y, '#f97316', 15, 'EXPLOSION');
-                            if (en.type === 'BOSS') {
-                                en.hp -= en.maxHp / 5; 
-                                bossHit = true;
-                            } else {
-                                en.hp = 0; 
-                            }
-                        });
-                        if (!bossHit) enemiesRef.current = enemiesRef.current.filter(e => e.type === 'BOSS'); 
-                        const ctx = canvasRef.current?.getContext('2d');
-                        if (ctx) { ctx.fillStyle = 'white'; ctx.fillRect(0,0, GAME_WIDTH, GAME_HEIGHT); }
-                        used = true;
-                    }
-                    if (used) onConsumeUtility(slotIdx);
-                }
-            };
-            if (e.key === '4') tryUseUtility(0);
-            if (e.key === '5') tryUseUtility(1);
+            if (e.key === '4') executeUtility(0);
+            if (e.key === '5') executeUtility(1);
         }
     };
     const handleKeyUp = (e: KeyboardEvent) => { keysPressed.current[e.code] = false; };
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     return () => { window.removeEventListener('keydown', handleKeyDown); window.removeEventListener('keyup', handleKeyUp); };
-  }, [gameState, isPaused, onConsumeUtility, utilities, playSfx]);
+  }, [gameState, isPaused, utilities, playSfx, onConsumeUtility]); // Added deps
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
