@@ -113,14 +113,18 @@ const App: React.FC = () => {
               }
           };
 
-          // Try Telegram Cloud
-          if (window.Telegram?.WebApp?.CloudStorage) {
-              window.Telegram.WebApp.CloudStorage.getItem(STORAGE_KEY, (err, value) => {
+          // Check for Telegram CloudStorage support (Needs version >= 6.9)
+          const tg = window.Telegram?.WebApp;
+          const isCloudSupported = tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9');
+
+          if (isCloudSupported && tg.CloudStorage) {
+              tg.CloudStorage.getItem(STORAGE_KEY, (err, value) => {
                   if (!err && value) {
                       console.log("Loaded from Telegram Cloud");
                       applyData(value);
                   } else {
-                      // Fallback to LocalStorage
+                      // Fallback to LocalStorage if cloud is empty or error
+                      console.log("Cloud empty/error, checking local");
                       const saved = localStorage.getItem(STORAGE_KEY);
                       if (saved) applyData(saved);
                   }
@@ -128,6 +132,7 @@ const App: React.FC = () => {
               });
           } else {
               // Just LocalStorage
+              console.log("Cloud not supported (Ver < 6.9 or not TG), using LocalStorage");
               const saved = localStorage.getItem(STORAGE_KEY);
               if (saved) applyData(saved);
               setIsDataLoaded(true); // Allow saving now
@@ -153,9 +158,14 @@ const App: React.FC = () => {
           // Save Local
           localStorage.setItem(STORAGE_KEY, jsonStr);
           
-          // Save Cloud
-          if (window.Telegram?.WebApp?.CloudStorage) {
-              window.Telegram.WebApp.CloudStorage.setItem(STORAGE_KEY, jsonStr);
+          // Save Cloud (Safe Check)
+          const tg = window.Telegram?.WebApp;
+          const isCloudSupported = tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9');
+
+          if (isCloudSupported && tg.CloudStorage) {
+              tg.CloudStorage.setItem(STORAGE_KEY, jsonStr, (err, stored) => {
+                  if (err) console.error("Cloud Save Error", err);
+              });
           }
       }
   }, [chapter, level, scrapCount, coreCount, weaponXP, weapons, utilities, trophies, settings, showIntro, playerColor, unlockedSkins, isDataLoaded]);
